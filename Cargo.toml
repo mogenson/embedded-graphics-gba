@@ -1,0 +1,18 @@
+[package]
+name = "embedded-graphics-gba"
+description = "embedded graphics DrawTarget implementation for Game Boy Advance"
+version = "0.1.0"
+authors = ["Michael Mogenson <michael.mogenson@gmail.com>"]
+edition = "2018"
+categories = ["embedded", "no-std", "nightly"]
+keywords = ["embedded", "graphics", "no_std", "gba"]
+repository = "https://github.com/mogenson/embedded-graphics-gba"
+readme = "README.md"
+license = "MIT"
+
+[dependencies]
+gba = { git = "https://github.com/rust-console/gba"}
+embedded-graphics = "0.6"
+
+[dev-dependencies]
+tinytga = { version = "0.3", features = ["graphics"] }
