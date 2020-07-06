@@ -44,86 +44,77 @@ impl From<PaletteColor> for RawU8 {
     }
 }
 
-// contains one type of bitmap display
-pub enum Display {
-    Mode3,
-    Mode4(Page),
-    Mode5(Page),
-}
+pub struct Mode3Display();
 
-impl DrawTarget<Bgr555> for Display {
+impl DrawTarget<Bgr555> for Mode3Display {
     type Error = Infallible;
 
     fn draw_pixel(&mut self, pixel: Pixel<Bgr555>) -> Result<(), Self::Error> {
-        let x = pixel.0.x as usize;
-        let y = pixel.0.y as usize;
-        let color = Color(pixel.1.into_storage());
-
-        match self {
-            Display::Mode3 => Mode3::write(x, y, color),
-            Display::Mode4(_) => return Ok(()), // Mode4 uses PaletteColor(RawU8)
-            Display::Mode5(page) => Mode5::write(*page, x, y, color),
-        };
-
+        Mode3::write(
+            pixel.0.x as usize,
+            pixel.0.y as usize,
+            Color(pixel.1.into_storage()),
+        );
         Ok(())
     }
 
     fn size(&self) -> Size {
-        let (w, h) = match self {
-            Display::Mode3 => (Mode3::WIDTH, Mode3::HEIGHT),
-            Display::Mode4(_) => (Mode4::WIDTH, Mode4::HEIGHT),
-            Display::Mode5(_) => (Mode5::WIDTH, Mode5::HEIGHT),
-        };
-
-        Size::new(w as u32, h as u32)
+        Size::new(Mode3::WIDTH as u32, Mode3::HEIGHT as u32)
     }
 
     fn clear(&mut self, color: Bgr555) -> Result<(), Self::Error> {
-        let color = Color(color.into_storage());
-
-        match self {
-            Display::Mode3 => Mode3::dma_clear_to(color),
-            Display::Mode4(_) => return Ok(()), // Mode4 uses PaletteColor(RawU8)
-            Display::Mode5(page) => Mode5::dma_clear_to(*page, color),
-        }
-
+        Mode3::dma_clear_to(Color(color.into_storage()));
         Ok(())
     }
 }
 
-impl DrawTarget<PaletteColor> for Display {
+pub struct Mode4Display(Page);
+
+impl DrawTarget<PaletteColor> for Mode4Display {
     type Error = Infallible;
 
     fn draw_pixel(&mut self, pixel: Pixel<PaletteColor>) -> Result<(), Self::Error> {
-        if let Display::Mode4(page) = self {
-            Mode4::write(
-                *page,
-                pixel.0.x as usize,
-                pixel.0.y as usize,
-                pixel.1.into_storage(),
-            );
-        } else {
-            return Ok(()); // Mode3 and Mode5 use Bgr555 color
-        }
+        Mode4::write(
+            self.0,
+            pixel.0.x as usize,
+            pixel.0.y as usize,
+            pixel.1.into_storage(),
+        );
 
         Ok(())
     }
 
     fn size(&self) -> Size {
-        let (w, h) = match self {
-            Display::Mode3 => (Mode3::WIDTH, Mode3::HEIGHT),
-            Display::Mode4(_) => (Mode4::WIDTH, Mode4::HEIGHT),
-            Display::Mode5(_) => (Mode5::WIDTH, Mode5::HEIGHT),
-        };
-
-        Size::new(w as u32, h as u32)
+        Size::new(Mode4::WIDTH as u32, Mode4::HEIGHT as u32)
     }
 
     fn clear(&mut self, color: PaletteColor) -> Result<(), Self::Error> {
-        if let Display::Mode4(page) = self {
-            Mode4::dma_clear_to(*page, color.into_storage());
-        }
+        Mode4::dma_clear_to(self.0, color.into_storage());
+        Ok(())
+    }
+}
 
+pub struct Mode5Display(Page);
+
+impl DrawTarget<Bgr555> for Mode5Display {
+    type Error = Infallible;
+
+    fn draw_pixel(&mut self, pixel: Pixel<Bgr555>) -> Result<(), Self::Error> {
+        Mode5::write(
+            self.0,
+            pixel.0.x as usize,
+            pixel.0.y as usize,
+            Color(pixel.1.into_storage()),
+        );
+        Ok(())
+    }
+
+    fn size(&self) -> Size {
+        Size::new(Mode5::WIDTH as u32, Mode5::HEIGHT as u32)
+    }
+
+    fn clear(&mut self, color: Bgr555) -> Result<(), Self::Error> {
+        Mode5::dma_clear_to(self.0, Color(color.into_storage()));
         Ok(())
     }
 }

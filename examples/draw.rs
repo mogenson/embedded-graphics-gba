@@ -4,7 +4,7 @@
 #![feature(exclusive_range_pattern)]
 #![feature(bindings_after_at)]
 
-use embedded_graphics_gba::{Display, PaletteColor};
+use embedded_graphics_gba::{Mode3Display, PaletteColor};
 
 use core::convert::{Infallible, TryInto};
 
@@ -65,7 +65,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     );
 
     // setup embedded graphics display
-    let mut display = Display::Mode3;
+    let mut display = Mode3Display();
     draw_canvas(&mut display).ok();
     draw_text(&mut display).ok();
     register_palette();
@@ -134,14 +134,14 @@ extern "C" fn irq_handler(flags: IrqFlags) {
     }
 }
 
-fn draw_canvas(display: &mut Display) -> Result<(), Infallible> {
+fn draw_canvas(display: &mut Mode3Display) -> Result<(), Infallible> {
     let tga = Tga::from_slice(include_bytes!("../assets/background.tga")).unwrap();
     let image: Image<Tga, Bgr555> = Image::new(&tga, Point::zero());
     image.draw(display)?;
     Ok(())
 }
 
-fn draw_text(display: &mut Display) -> Result<(), Infallible> {
+fn draw_text(display: &mut Mode3Display) -> Result<(), Infallible> {
     Rectangle::new(Point::new(0, 0), Point::new(48, 24))
         .into_styled(PrimitiveStyle::with_fill(Bgr555::WHITE))
         .draw(display)?;
