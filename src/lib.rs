@@ -3,7 +3,6 @@
 
 use core::convert::{Infallible, TryInto};
 use embedded_graphics::{
-    drawable::Pixel,
     geometry::Size,
     pixelcolor::{raw::RawU8, Bgr555, PixelColor},
     prelude::*,
@@ -44,17 +43,24 @@ impl From<PaletteColor> for RawU8 {
     }
 }
 
-pub struct Mode3Display();
+pub struct Mode3Display;
 
-impl DrawTarget<Bgr555> for Mode3Display {
+impl DrawTarget for Mode3Display {
+    type Color = Bgr555;
     type Error = Infallible;
 
-    fn draw_pixel(&mut self, pixel: Pixel<Bgr555>) -> Result<(), Self::Error> {
-        Mode3::write(
-            pixel.0.x as usize,
-            pixel.0.y as usize,
-            Color(pixel.1.into_storage()),
-        );
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            Mode3::write(
+                coord.x as usize,
+                coord.y as usize,
+                Color(color.into_storage()),
+            );
+        }
+
         Ok(())
     }
 
@@ -62,24 +68,32 @@ impl DrawTarget<Bgr555> for Mode3Display {
         Size::new(Mode3::WIDTH as u32, Mode3::HEIGHT as u32)
     }
 
-    fn clear(&mut self, color: Bgr555) -> Result<(), Self::Error> {
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
         Mode3::dma_clear_to(Color(color.into_storage()));
         Ok(())
     }
 }
 
-pub struct Mode4Display(Page);
+pub struct Mode4Display {
+    pub page: Page,
+}
 
-impl DrawTarget<PaletteColor> for Mode4Display {
+impl DrawTarget for Mode4Display {
+    type Color = PaletteColor;
     type Error = Infallible;
 
-    fn draw_pixel(&mut self, pixel: Pixel<PaletteColor>) -> Result<(), Self::Error> {
-        Mode4::write(
-            self.0,
-            pixel.0.x as usize,
-            pixel.0.y as usize,
-            pixel.1.into_storage(),
-        );
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            Mode4::write(
+                self.page,
+                coord.x as usize,
+                coord.y as usize,
+                color.into_storage(),
+            );
+        }
 
         Ok(())
     }
@@ -88,24 +102,32 @@ impl DrawTarget<PaletteColor> for Mode4Display {
         Size::new(Mode4::WIDTH as u32, Mode4::HEIGHT as u32)
     }
 
-    fn clear(&mut self, color: PaletteColor) -> Result<(), Self::Error> {
-        Mode4::dma_clear_to(self.0, color.into_storage());
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
+        Mode4::dma_clear_to(self.page, color.into_storage());
         Ok(())
     }
 }
 
-pub struct Mode5Display(Page);
+pub struct Mode5Display {
+    pub page: Page,
+}
 
-impl DrawTarget<Bgr555> for Mode5Display {
+impl DrawTarget for Mode5Display {
+    type Color = Bgr555;
     type Error = Infallible;
 
-    fn draw_pixel(&mut self, pixel: Pixel<Bgr555>) -> Result<(), Self::Error> {
-        Mode5::write(
-            self.0,
-            pixel.0.x as usize,
-            pixel.0.y as usize,
-            Color(pixel.1.into_storage()),
-        );
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            Mode5::write(
+                self.page,
+                coord.x as usize,
+                coord.y as usize,
+                Color(color.into_storage()),
+            );
+        }
         Ok(())
     }
 
@@ -113,21 +135,39 @@ impl DrawTarget<Bgr555> for Mode5Display {
         Size::new(Mode5::WIDTH as u32, Mode5::HEIGHT as u32)
     }
 
-    fn clear(&mut self, color: Bgr555) -> Result<(), Self::Error> {
-        Mode5::dma_clear_to(self.0, Color(color.into_storage()));
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
+        Mode5::dma_clear_to(self.page, Color(color.into_storage()));
         Ok(())
     }
 }
 
-impl DrawTarget<PaletteColor> for Tile4bpp {
+pub struct Tile4bppDisplay {
+    pub tile: Tile4bpp,
+}
+
+impl Tile4bppDisplay {
+    pub fn new(color: PaletteColor) -> Self {
+        Tile4bppDisplay {
+            tile: Tile4bpp([color.into_storage().into(); 8]),
+        }
+    }
+}
+
+impl DrawTarget for Tile4bppDisplay {
+    type Color = PaletteColor;
     type Error = Infallible;
 
-    fn draw_pixel(&mut self, pixel: Pixel<PaletteColor>) -> Result<(), Self::Error> {
-        if let Ok((x @ 0..8, y @ 0..8)) = pixel.0.try_into() {
-            let index: u32 = x + (y * 8); // index into [u4; 64] array
-            let word: &mut u32 = &mut self.0[index as usize / 8];
-            *word &= !(0xF << ((index % 8) * 4)); // clear nibble
-            *word |= (pixel.1.into_storage() as u32) << ((index % 8) * 4); // set nibble
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            if let Ok((x @ 0..8, y @ 0..8)) = coord.try_into() {
+                let index: u32 = x + (y * 8); // index into [u4; 64] array
+                let word: &mut u32 = &mut self.tile.0[index as usize / 8];
+                *word &= !(0xF << ((index % 8) * 4)); // clear nibble
+                *word |= (color.into_storage() as u32) << ((index % 8) * 4); // set nibble
+            }
         }
         Ok(())
     }
@@ -137,15 +177,33 @@ impl DrawTarget<PaletteColor> for Tile4bpp {
     }
 }
 
-impl DrawTarget<PaletteColor> for Tile8bpp {
+pub struct Tile8bppDisplay {
+    pub tile: Tile8bpp,
+}
+
+impl Tile8bppDisplay {
+    pub fn new(color: PaletteColor) -> Self {
+        Tile8bppDisplay {
+            tile: Tile8bpp([color.into_storage().into(); 16]),
+        }
+    }
+}
+
+impl DrawTarget for Tile8bppDisplay {
+    type Color = PaletteColor;
     type Error = Infallible;
 
-    fn draw_pixel(&mut self, pixel: Pixel<PaletteColor>) -> Result<(), Self::Error> {
-        if let Ok((x @ 0..8, y @ 0..8)) = pixel.0.try_into() {
-            let index: u32 = x + (y * 8); // index into [u8; 64] array
-            let word: &mut u32 = &mut self.0[index as usize / 4];
-            *word &= !(0xFF << ((index % 4) * 8)); // clear byte
-            *word |= (pixel.1.into_storage() as u32) << ((index % 4) * 8); // set byte
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            if let Ok((x @ 0..8, y @ 0..8)) = coord.try_into() {
+                let index: u32 = x + (y * 8); // index into [u8; 64] array
+                let word: &mut u32 = &mut self.tile.0[index as usize / 4];
+                *word &= !(0xFF << ((index % 4) * 8)); // clear byte
+                *word |= (color.into_storage() as u32) << ((index % 4) * 8); // set byte
+            }
         }
         Ok(())
     }

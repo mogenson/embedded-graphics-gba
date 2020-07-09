@@ -4,18 +4,16 @@
 #![feature(exclusive_range_pattern)]
 #![feature(bindings_after_at)]
 
-use embedded_graphics_gba::{Mode3Display, PaletteColor};
+use embedded_graphics_gba::{Mode3Display, PaletteColor, Tile8bppDisplay};
 
 use core::convert::{Infallible, TryInto};
 
 use embedded_graphics::{
-    egtriangle,
     fonts::{Font6x8, Text},
     image::Image,
     pixelcolor::Bgr555,
     prelude::*,
-    primitive_style,
-    primitives::Rectangle,
+    primitives::{Rectangle, Triangle},
     style::{PrimitiveStyle, TextStyle},
 };
 
@@ -28,7 +26,7 @@ use gba::{
     },
     oam::{write_obj_attributes, OBJAttr0, OBJAttr1, OBJAttr2, ObjectAttributes},
     palram::index_palram_obj_8bpp,
-    vram::{get_8bpp_character_block, Tile8bpp},
+    vram::get_8bpp_character_block,
     Color,
 };
 
@@ -65,7 +63,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     );
 
     // setup embedded graphics display
-    let mut display = Mode3Display();
+    let mut display = Mode3Display;
     draw_canvas(&mut display).ok();
     draw_text(&mut display).ok();
     register_palette();
@@ -134,15 +132,21 @@ extern "C" fn irq_handler(flags: IrqFlags) {
     }
 }
 
-fn draw_canvas(display: &mut Mode3Display) -> Result<(), Infallible> {
+fn draw_canvas<D>(display: &mut D) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = Bgr555>,
+{
     let tga = Tga::from_slice(include_bytes!("../assets/background.tga")).unwrap();
-    let image: Image<Tga, Bgr555> = Image::new(&tga, Point::zero());
+    let image: Image<_, Bgr555> = Image::new(&tga, Point::zero());
     image.draw(display)?;
     Ok(())
 }
 
-fn draw_text(display: &mut Mode3Display) -> Result<(), Infallible> {
-    Rectangle::new(Point::new(0, 0), Point::new(48, 24))
+fn draw_text<D>(display: &mut D) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = Bgr555>,
+{
+    Rectangle::new(Point::new(0, 0), Size::new(49, 25))
         .into_styled(PrimitiveStyle::with_fill(Bgr555::WHITE))
         .draw(display)?;
     Text::new("A: Draw", Point::new(1, 1))
@@ -165,18 +169,13 @@ fn register_palette() {
 }
 
 fn draw_cursor() -> Result<(), Infallible> {
-    let mut color = PaletteColor::TANSPARENT;
-    let mut tile = Tile8bpp([color.into_storage().into(); 16]);
+    let mut tile = Tile8bppDisplay::new(PaletteColor::TANSPARENT);
 
     for i in 0..COLORS.len() {
-        color = PaletteColor::new(i as u8 + 1);
-        egtriangle!(
-            points = [(0, 0), (7, 4), (4, 7)],
-            style = primitive_style!(stroke_color = color, fill_color = color, stroke_width = 1)
-        )
-        .draw(&mut tile)?;
-
-        get_8bpp_character_block(5).index(i).write(tile);
+        Triangle::new(Point::new(0, 0), Point::new(7, 4), Point::new(4, 7))
+            .into_styled(PrimitiveStyle::with_fill(PaletteColor::new(i as u8 + 1)))
+            .draw(&mut tile)?;
+        get_8bpp_character_block(5).index(i).write(tile.tile);
     }
 
     Ok(())

@@ -12,7 +12,11 @@ license = "MIT"
 
 [dependencies]
 gba = { git = "https://github.com/rust-console/gba"}
-embedded-graphics = "0.6"
+embedded-graphics = "*"
 
 [dev-dependencies]
-tinytga = { version = "0.3", features = ["graphics"] }
+tinytga = { version ="*", features = ["graphics"] }
+
+[patch.crates-io]
+embedded-graphics = { git = "https://github.com/jamwaffles/embedded-graphics.git" }
+tinytga = { git = "https://github.com/jamwaffles/embedded-graphics.git" }
